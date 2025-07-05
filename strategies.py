@@ -79,3 +79,24 @@ class BollingerBandsStrategy(TradingStrategy):
         signals['signal'] = signals['signal'].fillna(0)
         signals['positions'] = signals['signal'].diff()
         return signals
+
+# Price Momentum Strategy
+class PriceMomentumStrategy(TradingStrategy):
+    def __init__(self, momentum_window: int = 10):
+        self.momentum_window = momentum_window
+
+    def generate_signals(self, data: pd.DataFrame) -> pd.DataFrame:
+        signals = pd.DataFrame(index=data.index)
+        signals['price'] = data['Close']
+        # Calculate momentum (difference between current close and close n periods ago)
+        signals['momentum'] = data['Close'] - data['Close'].shift(self.momentum_window)
+        # Generate signals: Buy if momentum > 0, Sell if momentum < 0
+        signals['signal'] = 0
+        signals.loc[signals.index[self.momentum_window:], 'signal'] = np.where(
+            signals['momentum'][self.momentum_window:] > 0, 1,
+            np.where(signals['momentum'][self.momentum_window:] < 0, 0, np.nan)
+        )
+        signals['signal'] = signals['signal'].ffill()
+        signals['signal'] = signals['signal'].fillna(0)
+        signals['positions'] = signals['signal'].diff()
+        return signals

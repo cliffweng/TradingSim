@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import os
 from functools import lru_cache
-from strategies import TradingStrategy, MACrossoverStrategy, RSIStrategy, BollingerBandsStrategy
+from strategies import TradingStrategy, MACrossoverStrategy, RSIStrategy, BollingerBandsStrategy, PriceMomentumStrategy
 
 # Cache historical data
 @lru_cache(maxsize=32)
@@ -21,13 +21,18 @@ def main():
     # Sidebar for user inputs
     st.sidebar.header("Parameters")
     ticker = st.sidebar.text_input("Stock Ticker", value="AAPL")
-    start_date = st.sidebar.date_input("Start Date", value=datetime.now() - timedelta(days=365))
+    start_date = st.sidebar.date_input("Start Date", value=datetime.now() - timedelta(days=1000))
     end_date = st.sidebar.date_input("End Date", value=datetime.now())
 
     # Strategy selection
     strategy_choice = st.sidebar.selectbox(
         "Trading Strategy",
-        ["Moving Average Crossover", "RSI", "Bollinger Bands Breakout"]
+        [
+            "Moving Average Crossover",
+            "RSI",
+            "Bollinger Bands Breakout",
+            "Price Momentum"
+        ]
     )
 
     # Strategy-specific parameters
@@ -38,9 +43,11 @@ def main():
         rsi_period = st.sidebar.slider("RSI Period", min_value=5, max_value=50, value=14)
         overbought = st.sidebar.slider("Overbought Threshold", min_value=50, max_value=90, value=70)
         oversold = st.sidebar.slider("Oversold Threshold", min_value=10, max_value=50, value=30)
-    else:  # Bollinger Bands Breakout
+    elif strategy_choice == "Bollinger Bands Breakout":
         bb_window = st.sidebar.slider("BB Window", min_value=5, max_value=50, value=20)
         bb_num_std = st.sidebar.slider("BB Num Std Dev", min_value=1, max_value=4, value=2)
+    else:  # Price Momentum
+        momentum_window = st.sidebar.slider("Momentum Window", min_value=2, max_value=50, value=10)
 
     # Fetch data
     if ticker and start_date and end_date:
@@ -58,8 +65,10 @@ def main():
                 strategy = MACrossoverStrategy(short_window=short_window, long_window=long_window)
             elif strategy_choice == "RSI":
                 strategy = RSIStrategy(rsi_period=rsi_period, overbought=overbought, oversold=oversold)
-            else:
+            elif strategy_choice == "Bollinger Bands Breakout":
                 strategy = BollingerBandsStrategy(window=bb_window, num_std=bb_num_std)
+            else:
+                strategy = PriceMomentumStrategy(momentum_window=momentum_window)
             signals = strategy.generate_signals(data)
 
             # Create Plotly chart
@@ -80,13 +89,16 @@ def main():
                                        name='RSI', line=dict(color='purple')))
                 fig.add_hline(y=overbought, line_dash="dash", line_color="red", name='Overbought')
                 fig.add_hline(y=oversold, line_dash="dash", line_color="green", name='Oversold')
-            else:
+            elif strategy_choice == "Bollinger Bands Breakout":
                 fig.add_trace(go.Scatter(x=signals.index, y=signals['upper_band'], 
                                        name='Upper Band', line=dict(color='red', dash='dash')))
                 fig.add_trace(go.Scatter(x=signals.index, y=signals['lower_band'], 
                                        name='Lower Band', line=dict(color='green', dash='dash')))
                 fig.add_trace(go.Scatter(x=signals.index, y=signals['price'], 
                                        name='Price', line=dict(color='blue')))
+            elif strategy_choice == "Price Momentum":
+                fig.add_trace(go.Scatter(x=signals.index, y=signals['momentum'], 
+                                       name='Momentum', line=dict(color='orange')))
 
             # Add buy/sell signals
             buy_signals = signals[signals['positions'] == 1]
@@ -102,7 +114,7 @@ def main():
             fig.update_layout(
                 title=f"{ticker} Stock Price with {strategy_choice} Signals",
                 xaxis_title="Date",
-                yaxis_title="Price (USD) / RSI" if strategy_choice == "RSI" else "Price (USD)",
+                yaxis_title="Price (USD) / RSI / Momentum" if strategy_choice in ["RSI", "Price Momentum"] else "Price (USD)",
                 template="plotly_white",
                 height=600
             )

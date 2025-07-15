@@ -5,7 +5,63 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import os
 from functools import lru_cache
+from dataclasses import dataclass
+from typing import List
 from strategies import TradingStrategy, MACrossoverStrategy, RSIStrategy, BollingerBandsStrategy, PriceMomentumStrategy
+
+st.set_page_config(layout="wide")
+@dataclass
+class TradeRecord:
+    date: datetime
+    ticker: str
+    action: str  # 'BUY' or 'SELL'
+    price: float
+    shares: float = 1000  # Default position size
+    pnl: float = 0.0
+    strategy: str = ""
+    
+def calculate_trade_metrics(signals: pd.DataFrame, price_data: pd.DataFrame, strategy_name: str, ticker: str, starting_cash: float) -> List[TradeRecord]:
+    trades = []
+    position = 0
+    entry_price = 0
+    cash = starting_cash
+    shares_held = 0
+    
+    for date, row in signals.iterrows():
+        if row['positions'] == 1 and position == 0:  # Buy signal
+            position = 1
+            entry_price = row['price']
+            # Buy as many shares as possible with available cash
+            shares_to_buy = int(cash // entry_price)
+            cost = shares_to_buy * entry_price
+            cash -= cost
+            shares_held = shares_to_buy
+            trades.append(TradeRecord(
+                date=date,
+                ticker=ticker,
+                action='BUY',
+                price=entry_price,
+                shares=shares_to_buy,
+                strategy=strategy_name
+            ))
+        elif row['positions'] == -1 and position == 1:  # Sell signal
+            position = 0
+            exit_price = row['price']
+            proceeds = shares_held * exit_price
+            pnl = (exit_price - entry_price) * shares_held
+            cash += proceeds
+            trades.append(TradeRecord(
+                date=date,
+                ticker=ticker,
+                action='SELL',
+                price=exit_price,
+                shares=shares_held,
+                pnl=pnl,
+                strategy=strategy_name
+            ))
+            shares_held = 0
+    
+    return trades, cash
 
 # Cache historical data
 @lru_cache(maxsize=32)
@@ -19,10 +75,12 @@ def main():
     st.title("Trading Simulation App")
 
     # Sidebar for user inputs
+    # Add starting cash to sidebar
     st.sidebar.header("Parameters")
     ticker = st.sidebar.text_input("Stock Ticker", value="AAPL")
     start_date = st.sidebar.date_input("Start Date", value=datetime.now() - timedelta(days=1000))
     end_date = st.sidebar.date_input("End Date", value=datetime.now())
+    starting_cash = st.sidebar.number_input("Starting Cash ($)", min_value=1000, max_value=10000000, value=100000, step=1000)
 
     # Strategy selection
     strategy_choice = st.sidebar.selectbox(
@@ -129,7 +187,87 @@ def main():
             total_trades = len(buy_signals) + len(sell_signals)
             cum_returns = (1 + strategy_returns).cumprod().iloc[-1] - 1
             st.write(f"Total Trades: {total_trades}")
-            st.write(f"Cumulative Returns: {cum_returns:.2%}")
+            st.write(f"Cumulative Returns (Strategy): {cum_returns:.2%}")
+
+            # Buy and Hold comparison
+            buy_price = data['Close'].iloc[0]
+            sell_price = data['Close'].iloc[-1]
+            shares_bh = int(starting_cash // buy_price)
+            cash_bh = starting_cash - (shares_bh * buy_price)
+            final_bh_value = shares_bh * sell_price + cash_bh
+            cum_bh_return = (final_bh_value - starting_cash) / starting_cash
+            st.write(f"Cumulative Returns (Buy & Hold): {cum_bh_return:.2%}")
+
+            # Annual returns for strategy
+            strat_portfolio = (1 + strategy_returns).cumprod() * starting_cash
+            strat_portfolio.index = pd.to_datetime(strat_portfolio.index)
+            strat_annual = strat_portfolio.resample('Y').last().pct_change().dropna()
+            # Annual returns for buy & hold
+            bh_portfolio = (data['Close'] / buy_price) * starting_cash
+            bh_portfolio.index = pd.to_datetime(bh_portfolio.index)
+            bh_annual = bh_portfolio.resample('Y').last().pct_change().dropna()
+
+            annual_df = pd.DataFrame({
+                'Strategy Annual Return': strat_annual,
+                'Buy & Hold Annual Return': bh_annual
+            })
+            annual_df = annual_df.applymap(lambda x: f"{x:.2%}")
+            st.write("Annual Returns:")
+            st.dataframe(annual_df)
+            
+            # Calculate and display trade blotter
+            st.subheader("Trade Blotter")
+            trades, final_cash = calculate_trade_metrics(signals, data, strategy_choice, ticker, starting_cash)
+            if trades:
+                trades_df = pd.DataFrame([vars(trade) for trade in trades])
+                trades_df['date'] = pd.to_datetime(trades_df['date'])
+                trades_df = trades_df.sort_values('date')
+                
+                # Format the trade blotter
+                trades_df['price'] = trades_df['price'].round(2)
+                trades_df['pnl'] = trades_df['pnl'].round(2)
+                trades_df['value'] = (trades_df['price'] * trades_df['shares']).round(2)
+                
+                # Calculate cumulative P&L
+                trades_df['cumulative_pnl'] = trades_df['pnl'].cumsum().round(2)
+                
+                # Display formatted trade blotter
+                st.dataframe(
+                    trades_df[[
+                        'date', 'ticker', 'action', 'price', 'shares', 'value',
+                        'pnl', 'cumulative_pnl', 'strategy'
+                    ]].style.format({
+                        'price': '${:.2f}',
+                        'value': '${:,.2f}',
+                        'pnl': '${:,.2f}',
+                        'cumulative_pnl': '${:,.2f}'
+                    }).background_gradient(subset=['pnl', 'cumulative_pnl'], cmap='RdYlGn')
+                )
+                
+                # Show final cash balance
+                st.write(f"Final Cash Balance: ${final_cash:,.2f}")
+                
+                # Add download button for trade blotter
+                csv = trades_df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    "Download Trade Blotter",
+                    csv,
+                    f"{ticker}_{strategy_choice}_trades.csv",
+                    "text/csv",
+                    key='download-trades'
+                )
+            else:
+                st.write("No trades generated during this period.")
+
+            # Annualized return (CAGR) for strategy
+            n_years = (strat_portfolio.index[-1] - strat_portfolio.index[0]).days / 365.25
+            strat_final = strat_portfolio.iloc[-1]
+            strat_cagr = (strat_final / starting_cash) ** (1 / n_years) - 1
+            # Annualized return (CAGR) for buy & hold
+            bh_final = bh_portfolio.iloc[-1]
+            bh_cagr = (bh_final / starting_cash) ** (1 / n_years) - 1
+            st.write(f"Annualized Return (Strategy): {strat_cagr:.2%}")
+            st.write(f"Annualized Return (Buy & Hold): {bh_cagr:.2%}")
 
         except Exception as e:
             st.error(f"Error fetching data: {str(e)}")

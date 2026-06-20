@@ -41,49 +41,75 @@ strategy_type = st.sidebar.selectbox(
         "Mean Reversion",
         "Relative Strength (vs S&P 500)",
         "Risk-Adjusted Momentum (Sharpe)"
-    ]
+    ],
+    help="Choose the sector rotation signal. Each strategy selects which ETFs to hold at each rebalance date based on different criteria."
 )
 
 # Dynamic parameters based on strategy
 st.sidebar.header("Strategy Parameters")
 
 if strategy_type == "Momentum (Top N)":
-    lookback_months = st.sidebar.slider("Lookback Period (months)", min_value=1, max_value=12, value=6)
-    top_n = st.sidebar.slider("Number of ETFs to Hold", min_value=1, max_value=len(etfs), value=3)
-    rebalance_freq = st.sidebar.selectbox("Rebalance Frequency", ["ME", "QE", "YE"], index=0)
+    lookback_months = st.sidebar.slider("Lookback Period (months)", min_value=1, max_value=12, value=6,
+        help="Number of months of historical returns used to rank sector ETF performance")
+    top_n = st.sidebar.slider("Number of ETFs to Hold", min_value=1, max_value=len(etfs), value=3,
+        help="Number of top-performing ETFs to hold in the portfolio at each rebalance")
+    rebalance_freq = st.sidebar.selectbox("Rebalance Frequency", ["ME", "QE", "YE"], index=0,
+        help="How often the portfolio is rebalanced: Monthly (ME), Quarterly (QE), or Yearly (YE)")
 elif strategy_type == "RSI (Oversold Sectors)":
-    rsi_period = st.sidebar.slider("RSI Period", min_value=5, max_value=30, value=14)
-    oversold_threshold = st.sidebar.slider("Oversold Threshold", min_value=10, max_value=40, value=30)
-    top_n = st.sidebar.slider("Max ETFs to Hold", min_value=1, max_value=len(etfs), value=3)
-    rebalance_freq = st.sidebar.selectbox("Rebalance Frequency", ["ME", "QE", "YE"], index=0)
+    rsi_period = st.sidebar.slider("RSI Period", min_value=5, max_value=30, value=14,
+        help="Lookback period for RSI calculation. Lower values make the indicator more sensitive.")
+    oversold_threshold = st.sidebar.slider("Oversold Threshold", min_value=10, max_value=40, value=30,
+        help="RSI level below which a sector is considered oversold and a candidate for buying")
+    top_n = st.sidebar.slider("Max ETFs to Hold", min_value=1, max_value=len(etfs), value=3,
+        help="Maximum number of oversold ETFs to hold simultaneously")
+    rebalance_freq = st.sidebar.selectbox("Rebalance Frequency", ["ME", "QE", "YE"], index=0,
+        help="How often the portfolio is rebalanced: Monthly (ME), Quarterly (QE), or Yearly (YE)")
 elif strategy_type == "Mean Reversion":
-    lookback_months = st.sidebar.slider("Lookback Period (months)", min_value=1, max_value=12, value=3)
-    z_threshold = st.sidebar.slider("Z-Score Threshold", min_value=0.5, max_value=2.0, value=1.0, step=0.1)
-    top_n = st.sidebar.slider("Max ETFs to Hold", min_value=1, max_value=len(etfs), value=3)
-    rebalance_freq = st.sidebar.selectbox("Rebalance Frequency", ["ME", "QE", "YE"], index=0)
+    lookback_months = st.sidebar.slider("Lookback Period (months)", min_value=1, max_value=12, value=3,
+        help="Number of months of returns used to calculate z-scores and identify underperforming sectors")
+    z_threshold = st.sidebar.slider("Z-Score Threshold", min_value=0.5, max_value=2.0, value=1.0, step=0.1,
+        help="Z-score threshold for identifying oversold sectors. Sectors below -threshold are bought.")
+    top_n = st.sidebar.slider("Max ETFs to Hold", min_value=1, max_value=len(etfs), value=3,
+        help="Maximum number of oversold ETFs to hold simultaneously")
+    rebalance_freq = st.sidebar.selectbox("Rebalance Frequency", ["ME", "QE", "YE"], index=0,
+        help="How often the portfolio is rebalanced: Monthly (ME), Quarterly (QE), or Yearly (YE)")
 elif strategy_type == "Relative Strength (vs S&P 500)":
-    lookback_months = st.sidebar.slider("Lookback Period (months)", min_value=1, max_value=12, value=6)
-    top_n = st.sidebar.slider("Number of ETFs to Hold", min_value=1, max_value=len(etfs), value=3)
-    rebalance_freq = st.sidebar.selectbox("Rebalance Frequency", ["ME", "QE", "YE"], index=0)
+    lookback_months = st.sidebar.slider("Lookback Period (months)", min_value=1, max_value=12, value=6,
+        help="Number of months used to calculate each ETF's excess return over the S&P 500")
+    top_n = st.sidebar.slider("Number of ETFs to Hold", min_value=1, max_value=len(etfs), value=3,
+        help="Number of ETFs with the highest relative strength to hold")
+    rebalance_freq = st.sidebar.selectbox("Rebalance Frequency", ["ME", "QE", "YE"], index=0,
+        help="How often the portfolio is rebalanced: Monthly (ME), Quarterly (QE), or Yearly (YE)")
 else:  # Risk-Adjusted Momentum (Sharpe)
-    lookback_months = st.sidebar.slider("Lookback Period (months)", min_value=1, max_value=12, value=6)
-    top_n = st.sidebar.slider("Number of ETFs to Hold", min_value=1, max_value=len(etfs), value=3)
-    rebalance_freq = st.sidebar.selectbox("Rebalance Frequency", ["ME", "QE", "YE"], index=0)
+    lookback_months = st.sidebar.slider("Lookback Period (months)", min_value=1, max_value=12, value=6,
+        help="Number of months used to calculate Sharpe ratios for each sector ETF")
+    top_n = st.sidebar.slider("Number of ETFs to Hold", min_value=1, max_value=len(etfs), value=3,
+        help="Number of ETFs with the highest Sharpe ratios to hold")
+    rebalance_freq = st.sidebar.selectbox("Rebalance Frequency", ["ME", "QE", "YE"], index=0,
+        help="How often the portfolio is rebalanced: Monthly (ME), Quarterly (QE), or Yearly (YE)")
 
 # Tax considerations
 st.sidebar.header("Tax Settings")
-enable_tax = st.sidebar.checkbox("Enable Tax-Aware Mode", value=True)
+enable_tax = st.sidebar.checkbox("Enable Tax-Aware Mode", value=True,
+    help="When enabled, capital gains tax is calculated on profitable trades. Tax is tracked per transaction and reflected in after-tax returns.")
 if enable_tax:
-    tax_rate = st.sidebar.slider("Capital Gains Tax Rate (%)", min_value=0, max_value=50, value=37) / 100
+    tax_rate = st.sidebar.slider("Capital Gains Tax Rate (%)", min_value=0, max_value=50, value=37,
+        help="Tax rate applied to profitable trades. Short-term gains are taxed at ordinary income rates (up to 37% in the US).") / 100
     st.sidebar.write("Note: Short-term gains use income tax rate; long-term gains use preferential rate.")
+
+st.sidebar.divider()
+st.sidebar.caption("Built by wengc — [GitHub](https://github.com/wengc)")
 
 # User input for date range
 st.subheader("Select Date Range")
+st.caption("Choose the historical period for backtesting the sector rotation strategy across all ETFs.")
 col1, col2 = st.columns(2)
 with col1:
-    start_date = st.date_input("Start Date", value=datetime(2020, 1, 1))
+    start_date = st.date_input("Start Date", value=datetime(2020, 1, 1),
+        help="Beginning of the backtest period")
 with col2:
-    end_date = st.date_input("End Date", value=datetime(2025, 7, 1))
+    end_date = st.date_input("End Date", value=datetime(2025, 7, 1),
+        help="End of the backtest period")
 
 # Function to fetch or simulate data
 @st.cache_data

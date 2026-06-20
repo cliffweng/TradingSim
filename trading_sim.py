@@ -118,14 +118,22 @@ def fetch_historical_data(ticker: str, start_date: str, end_date: str) -> pd.Dat
 # Streamlit app
 def main():
     st.title("Trading Simulation App")
+    st.markdown(
+        "Backtest **10 trading strategies** against any stock ticker using historical data from Yahoo Finance. "
+        "Configure strategy parameters, enable tax-aware P&L, and compare results against Buy & Hold."
+    )
 
     # Sidebar for user inputs
     # Add starting cash to sidebar
     st.sidebar.header("Parameters")
-    ticker = st.sidebar.text_input("Stock Ticker", value="AAPL")
-    start_date = st.sidebar.date_input("Start Date", value=datetime.now() - timedelta(days=1000))
-    end_date = st.sidebar.date_input("End Date", value=datetime.now())
-    starting_cash = st.sidebar.number_input("Starting Cash ($)", min_value=1000, max_value=10000000, value=100000, step=1000)
+    ticker = st.sidebar.text_input("Stock Ticker", value="AAPL",
+        help="NYSE/NASDAQ ticker symbol (e.g., AAPL, MSFT, GOOGL, SPY)")
+    start_date = st.sidebar.date_input("Start Date", value=datetime.now() - timedelta(days=1000),
+        help="Start of the historical date range for backtesting")
+    end_date = st.sidebar.date_input("End Date", value=datetime.now(),
+        help="End of the historical date range for backtesting")
+    starting_cash = st.sidebar.number_input("Starting Cash ($)", min_value=1000, max_value=10000000, value=100000, step=1000,
+        help="Initial portfolio cash balance used to simulate trade sizes")
 
     # Strategy selection
     strategy_choice = st.sidebar.selectbox(
@@ -141,49 +149,77 @@ def main():
             "Stochastic Oscillator",
             "ATR Trailing Stop",
             "Dual Thrust"
-        ]
+        ],
+        help="Select the trading strategy to backtest. Each uses different technical indicators to generate buy/sell signals."
     )
 
     # Strategy-specific parameters
     if strategy_choice == "Moving Average Crossover":
-        short_window = st.sidebar.slider("Short MA Window", min_value=5, max_value=50, value=20)
-        long_window = st.sidebar.slider("Long MA Window", min_value=20, max_value=200, value=50)
+        short_window = st.sidebar.slider("Short MA Window", min_value=5, max_value=50, value=20,
+            help="Number of periods for the fast moving average. Smaller values are more sensitive to recent price changes.")
+        long_window = st.sidebar.slider("Long MA Window", min_value=20, max_value=200, value=50,
+            help="Number of periods for the slow moving average. Buy signal when short MA crosses above long MA.")
     elif strategy_choice == "RSI":
-        rsi_period = st.sidebar.slider("RSI Period", min_value=5, max_value=50, value=14)
-        overbought = st.sidebar.slider("Overbought Threshold", min_value=50, max_value=90, value=70)
-        oversold = st.sidebar.slider("Oversold Threshold", min_value=10, max_value=50, value=30)
+        rsi_period = st.sidebar.slider("RSI Period", min_value=5, max_value=50, value=14,
+            help="Lookback period for RSI calculation. Standard value is 14.")
+        overbought = st.sidebar.slider("Overbought Threshold", min_value=50, max_value=90, value=70,
+            help="RSI level above which the asset is considered overbought and a sell signal is triggered")
+        oversold = st.sidebar.slider("Oversold Threshold", min_value=10, max_value=50, value=30,
+            help="RSI level below which the asset is considered oversold and a buy signal is triggered")
     elif strategy_choice == "Bollinger Bands Breakout":
-        bb_window = st.sidebar.slider("BB Window", min_value=5, max_value=50, value=20)
-        bb_num_std = st.sidebar.slider("BB Num Std Dev", min_value=1, max_value=4, value=2)
+        bb_window = st.sidebar.slider("BB Window", min_value=5, max_value=50, value=20,
+            help="Number of periods for the moving average and standard deviation calculation")
+        bb_num_std = st.sidebar.slider("BB Num Std Dev", min_value=1, max_value=4, value=2,
+            help="Number of standard deviations for the upper and lower bands. Higher values create wider bands.")
     elif strategy_choice == "Price Momentum":
-        momentum_window = st.sidebar.slider("Momentum Window", min_value=2, max_value=50, value=10)
+        momentum_window = st.sidebar.slider("Momentum Window", min_value=2, max_value=50, value=10,
+            help="Number of periods to look back when calculating price momentum (current close - close N periods ago)")
     elif strategy_choice == "MACD":
-        fast_period = st.sidebar.slider("Fast EMA Period", min_value=5, max_value=30, value=12)
-        slow_period = st.sidebar.slider("Slow EMA Period", min_value=15, max_value=50, value=26)
-        signal_period = st.sidebar.slider("Signal Line Period", min_value=5, max_value=20, value=9)
+        fast_period = st.sidebar.slider("Fast EMA Period", min_value=5, max_value=30, value=12,
+            help="Period for the fast EMA in the MACD calculation. Standard is 12.")
+        slow_period = st.sidebar.slider("Slow EMA Period", min_value=15, max_value=50, value=26,
+            help="Period for the slow EMA in the MACD calculation. Standard is 26.")
+        signal_period = st.sidebar.slider("Signal Line Period", min_value=5, max_value=20, value=9,
+            help="Period for the signal line EMA applied to the MACD line. Standard is 9.")
     elif strategy_choice == "Mean Reversion":
-        mr_window = st.sidebar.slider("Mean Reversion Window", min_value=5, max_value=50, value=20)
-        z_threshold = st.sidebar.slider("Z-Score Threshold", min_value=0.5, max_value=3.0, value=2.0, step=0.1)
+        mr_window = st.sidebar.slider("Mean Reversion Window", min_value=5, max_value=50, value=20,
+            help="Lookback window for calculating the rolling mean and standard deviation")
+        z_threshold = st.sidebar.slider("Z-Score Threshold", min_value=0.5, max_value=3.0, value=2.0, step=0.1,
+            help="Z-score threshold for entry. Buy when z-score drops below -threshold (oversold), sell when above +threshold (overbought).")
     elif strategy_choice == "Donchian Channel":
-        channel_period = st.sidebar.slider("Channel Period", min_value=5, max_value=50, value=20)
+        channel_period = st.sidebar.slider("Channel Period", min_value=5, max_value=50, value=20,
+            help="Number of periods for the highest high / lowest low lookback range")
     elif strategy_choice == "Stochastic Oscillator":
-        stoch_k = st.sidebar.slider("%K Period", min_value=5, max_value=30, value=14)
-        stoch_d = st.sidebar.slider("%D Period", min_value=2, max_value=10, value=3)
-        stoch_overbought = st.sidebar.slider("Stoch Overbought", min_value=50, max_value=90, value=80)
-        stoch_oversold = st.sidebar.slider("Stoch Oversold", min_value=10, max_value=50, value=20)
+        stoch_k = st.sidebar.slider("%K Period", min_value=5, max_value=30, value=14,
+            help="Period for the %K line in the stochastic oscillator")
+        stoch_d = st.sidebar.slider("%D Period", min_value=2, max_value=10, value=3,
+            help="Smoothing period for the %D signal line (moving average of %K)")
+        stoch_overbought = st.sidebar.slider("Stoch Overbought", min_value=50, max_value=90, value=80,
+            help="Level above which the oscillator is considered overbought")
+        stoch_oversold = st.sidebar.slider("Stoch Oversold", min_value=10, max_value=50, value=20,
+            help="Level below which the oscillator is considered oversold")
     elif strategy_choice == "ATR Trailing Stop":
-        atr_period = st.sidebar.slider("ATR Period", min_value=5, max_value=30, value=14)
-        atr_mult = st.sidebar.slider("ATR Multiplier", min_value=0.5, max_value=5.0, value=2.0, step=0.1)
+        atr_period = st.sidebar.slider("ATR Period", min_value=5, max_value=30, value=14,
+            help="Lookback period for the Average True Range calculation")
+        atr_mult = st.sidebar.slider("ATR Multiplier", min_value=0.5, max_value=5.0, value=2.0, step=0.1,
+            help="Multiplier applied to ATR to set the trailing stop distance. Higher values give the price more room.")
     else:  # Dual Thrust
-        dt_lookback = st.sidebar.slider("Lookback Period", min_value=5, max_value=50, value=20)
-        dt_k = st.sidebar.slider("K Value", min_value=0.1, max_value=2.0, value=0.5, step=0.1)
+        dt_lookback = st.sidebar.slider("Lookback Period", min_value=5, max_value=50, value=20,
+            help="Number of periods to calculate the daily range for breakout levels")
+        dt_k = st.sidebar.slider("K Value", min_value=0.1, max_value=2.0, value=0.5, step=0.1,
+            help="K multiplier applied to the range to set upper/lower breakout levels. Higher values require stronger breakouts.")
 
     # Tax settings
     st.sidebar.header("Tax Settings")
-    enable_tax = st.sidebar.checkbox("Enable Tax-Aware Mode", value=True)
+    enable_tax = st.sidebar.checkbox("Enable Tax-Aware Mode", value=True,
+        help="When enabled, capital gains tax is deducted from profitable trades. After-tax returns are shown in the annual breakdown and trade blotter.")
     tax_rate = 0.0  # default
     if enable_tax:
-        tax_rate = st.sidebar.slider("Capital Gains Tax Rate (%)", min_value=0, max_value=50, value=37) / 100
+        tax_rate = st.sidebar.slider("Capital Gains Tax Rate (%)", min_value=0, max_value=50, value=37,
+            help="Tax rate applied to profitable trades. Short-term capital gains are typically taxed at ordinary income rates (up to 37% in the US).") / 100
+
+    st.sidebar.divider()
+    st.sidebar.caption("Built by wengc — [GitHub](https://github.com/wengc)")
 
     # Fetch data
     if ticker and start_date and end_date:

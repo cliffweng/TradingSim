@@ -442,7 +442,7 @@ st.plotly_chart(fig_stack, use_container_width=True)
 st.subheader("Monthly Returns of ETFs")
 # Rename columns for display
 monthly_returns_display = monthly_returns.rename(columns=etfs_display)
-fig3 = px.line(monthly_returns_display, x=monthly_returns_display.index, y=monthly_returns_display.columns, title='Monthly Returns by ETF')
+fig3 = px.line(monthly_returns_display, y=monthly_returns_display.columns, title='Monthly Returns by ETF')
 st.plotly_chart(fig3, use_container_width=True)
 
 # Identify buy and sell signals for multi-ETF strategy, including amount, shares, and PnL

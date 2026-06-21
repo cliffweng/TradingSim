@@ -2,7 +2,7 @@
 
 **TradingSim** is a Python-based trading simulation suite built with Streamlit. It provides two interactive web apps for backtesting trading strategies and analyzing sector rotation — no coding required.
 
-Built by **wengc**.
+Built by **Cliff Weng**.
 
 ---
 
@@ -33,7 +33,7 @@ A single-ticker backtesting engine that fetches real historical data via Yahoo F
 - Interactive Plotly charts with buy/sell signal markers
 - Parameter sliders for every strategy
 
-### 2. Sector Rotation Strategy App (`sector_rotation.py`)
+### 2. [Sector Rotation Strategy App]((README_ROTATION.md)) (`sector_rotation.py`)
 
 A multi-ETF sector rotation backtester that allocates across 7 sector ETFs and rebalances periodically based on 5 different rotation signals.
 

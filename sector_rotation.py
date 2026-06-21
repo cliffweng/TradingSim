@@ -161,7 +161,17 @@ def get_etf_data(tickers, start, end):
         return data
 
 # Fetch or simulate data
-data = get_etf_data(etfs, start_date, end_date)
+_etf_cache_file = os.path.join('yf_cache', f"etfdata_{start_date}_{end_date}.pkl")
+if os.path.exists(_etf_cache_file):
+    st.sidebar.success(f"ETF data: loaded from cache")
+    st.toast(f"ETF data loaded from local cache", icon="💾")
+    data = get_etf_data(etfs, start_date, end_date)
+else:
+    st.sidebar.info("ETF data: fetching from yfinance...")
+    with st.spinner(f"Fetching ETF pricing data from yfinance ({', '.join(etfs.keys())})..."):
+        data = get_etf_data(etfs, start_date, end_date)
+    st.sidebar.success("ETF data: fetched from yfinance")
+    st.toast("ETF pricing data retrieved from yfinance", icon="✅")
 
 # Fetch S&P 500 data for comparison
 @st.cache_data
@@ -197,7 +207,17 @@ def get_sp500_data(start, end):
         st.warning(f"S&P 500 data fetch failed: {e}")
         return pd.Series(index=pd.date_range(start=start, end=end, freq='D'), dtype=float)
 
-sp500 = get_sp500_data(start_date, end_date)
+_sp500_cache_file = os.path.join('yf_cache', f"sp500_{start_date}_{end_date}.pkl")
+if os.path.exists(_sp500_cache_file):
+    st.sidebar.success("S&P 500 data: loaded from cache")
+    st.toast("S&P 500 benchmark data loaded from local cache", icon="💾")
+    sp500 = get_sp500_data(start_date, end_date)
+else:
+    st.sidebar.info("S&P 500 data: fetching from yfinance...")
+    with st.spinner("Fetching S&P 500 benchmark data from yfinance (^GSPC)..."):
+        sp500 = get_sp500_data(start_date, end_date)
+    st.sidebar.success("S&P 500 data: fetched from yfinance")
+    st.toast("S&P 500 benchmark data retrieved from yfinance", icon="✅")
 
 # Calculate monthly returns for visualization
 monthly_returns = data.resample('ME').last().pct_change().dropna()
